@@ -81,8 +81,3 @@ button {
     grid-template-columns: 1fr;
   }
 }
-
-.warning {
-  border-color: #854d0e;
-  background: #1f2937;
-}
