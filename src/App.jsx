@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from './api';
+import { buildFallbackStars } from './fallbackData';
 
 const LOCAL_USER_KEY = 'galaxy-user-id-v1';
 
@@ -18,7 +19,9 @@ function App() {
 
   useEffect(() => {
     const saved = localStorage.getItem(LOCAL_USER_KEY);
-    if (saved) setUser({ id: Number(saved) });
+    if (saved) {
+      setUser({ id: Number(saved), nickname: `探索者#${saved}` });
+    }
   }, []);
 
   useEffect(() => {
