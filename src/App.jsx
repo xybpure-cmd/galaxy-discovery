@@ -1,4 +1,3 @@
-import React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from './api';
 import { buildFallbackStars } from './fallbackData';
@@ -7,14 +6,13 @@ const LOCAL_USER_KEY = 'galaxy-user-id-v1';
 
 function App() {
   const [user, setUser] = useState(null);
-  const [stars, setStars] = useState(buildFallbackStars());
+  const [stars, setStars] = useState([]);
   const [selectedStar, setSelectedStar] = useState(null);
   const [lightCurve, setLightCurve] = useState([]);
   const [reports, setReports] = useState([]);
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [apiReady, setApiReady] = useState(false);
 
   const candidates = useMemo(() => stars.filter((s) => s.userClassification === 'candidate').length, [stars]);
   const discoveries = useMemo(() => stars.filter((s) => s.discoveryConfirmed).length, [stars]);
@@ -38,12 +36,9 @@ function App() {
       setLoading(true);
       setError('');
       const data = await api.getStars();
-      setStars(data.stars || []);
-      setApiReady(true);
+      setStars(data.stars);
     } catch (err) {
-      setApiReady(false);
-      setError(`后端暂时不可用，已切换离线演示模式：${err.message}`);
-      setStars((prev) => (prev.length > 0 ? prev : buildFallbackStars()));
+      setError(`加载恒星失败：${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -52,24 +47,16 @@ function App() {
   async function loadReports(userId) {
     try {
       const data = await api.getReportHistory(userId);
-      setReports(data.reports || []);
+      setReports(data.reports);
     } catch (_) {
       setReports([]);
     }
   }
 
   async function startAnonymous() {
-    setError('');
-    try {
-      const data = await api.createAnonymousUser();
-      localStorage.setItem(LOCAL_USER_KEY, String(data.user.id));
-      setUser(data.user);
-      setApiReady(true);
-    } catch (err) {
-      setUser({ id: -1, nickname: '匿名探索者(离线)' });
-      setApiReady(false);
-      setError(`后端未连接，已进入离线演示模式：${err.message}`);
-    }
+    const data = await api.createAnonymousUser();
+    localStorage.setItem(LOCAL_USER_KEY, String(data.user.id));
+    setUser(data.user);
   }
 
   async function login(formData) {
@@ -79,90 +66,36 @@ function App() {
       setError('请至少填写昵称或邮箱。');
       return;
     }
-
+    const data = await api.login({ nickname, email });
+    localStorage.setItem(LOCAL_USER_KEY, String(data.user.id));
+    setUser(data.user);
     setError('');
-    try {
-      const data = await api.login({ nickname, email });
-      localStorage.setItem(LOCAL_USER_KEY, String(data.user.id));
-      setUser(data.user);
-      setApiReady(true);
-    } catch (err) {
-      setUser({ id: -1, nickname: nickname || email || '离线探索者' });
-      setApiReady(false);
-      setError(`后端未连接，已进入离线演示模式：${err.message}`);
-    }
   }
 
   async function openStar(star) {
     setSelectedStar(star);
     setNote(star.userNote || '');
-    if (!apiReady) {
-      const points = Array.from({ length: 72 }, (_, i) => ({
-        t: +(i * 0.45).toFixed(2),
-        flux: +(1 + 0.003 * Math.sin(i / 5) + 0.002 * Math.cos(i / 7)).toFixed(5),
-      }));
-      setLightCurve(points);
-      return;
-    }
-    try {
-      const data = await api.getLightCurve(star.id);
-      setLightCurve(data.points || []);
-    } catch (err) {
-      setError(`光变曲线加载失败：${err.message}`);
-      setLightCurve([]);
-    }
+    const data = await api.getLightCurve(star.id);
+    setLightCurve(data.points);
   }
 
   async function submitClassification(verdict) {
     if (!selectedStar || !user?.id) return;
-
-    if (!apiReady || user.id < 0) {
-      const updated = stars.map((s) =>
-        s.id === selectedStar.id
-          ? { ...s, userClassification: verdict, userNote: note }
-          : s
-      );
-      setStars(updated);
-      setSelectedStar(updated.find((s) => s.id === selectedStar.id) || null);
-      setError('离线演示模式下，判断只保存在当前页面，不会同步到服务器。');
-      return;
-    }
-
-    try {
-      await api.submitClassification({
-        userId: user.id,
-        starId: selectedStar.id,
-        verdict,
-        notes: note,
-      });
-      await loadStars();
-      const validation = await api.getValidation(selectedStar.id);
-      setSelectedStar((prev) => ({ ...prev, ...validation.star }));
-    } catch (err) {
-      setError(`提交失败：${err.message}`);
-    }
+    await api.submitClassification({
+      userId: user.id,
+      starId: selectedStar.id,
+      verdict,
+      notes: note,
+    });
+    await loadStars();
+    const validation = await api.getValidation(selectedStar.id);
+    setSelectedStar((prev) => ({ ...prev, ...validation.star }));
   }
 
   async function generateReport() {
     if (!user?.id) return;
-
-    if (!apiReady || user.id < 0) {
-      const report = {
-        id: `offline-${Date.now()}`,
-        title: '离线演示报告',
-        content: `离线模式：已浏览 ${stars.length} 颗恒星，标记 ${candidates} 个候选目标。`,
-      };
-      setReports((prev) => [report, ...prev]);
-      setError('当前为离线演示模式，报告未写入服务器。');
-      return;
-    }
-
-    try {
-      const data = await api.generateReport({ userId: user.id });
-      setReports((prev) => [data.report, ...prev]);
-    } catch (err) {
-      setError(`报告生成失败：${err.message}`);
-    }
+    const data = await api.generateReport({ userId: user.id });
+    setReports((prev) => [data.report, ...prev]);
   }
 
   const points = useMemo(() => {
@@ -183,13 +116,6 @@ function App() {
     <div className="page">
       <h1>Galaxy Discovery</h1>
       <p>一个开放给所有人使用的游戏化科研学习平台。</p>
-
-      {!apiReady && (
-        <div className="card warning">
-          <strong>演示模式</strong>
-          <p>后端还没连上，页面仍可正常显示与体验，不会黑屏。</p>
-        </div>
-      )}
 
       {!user ? (
         <div className="card">
