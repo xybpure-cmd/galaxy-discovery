@@ -1,0 +1,83 @@
+body {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  background: #020617;
+  color: #f8fafc;
+}
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+.card {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+.map {
+  min-height: 520px;
+  position: relative;
+  background: radial-gradient(circle, #1e293b, #020617);
+}
+.star {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: none;
+  background: #93c5fd;
+  cursor: pointer;
+}
+.star.discovery {
+  background: #facc15;
+}
+.panel textarea,
+input {
+  width: 100%;
+  margin-bottom: 8px;
+  background: #0b1220;
+  color: #f8fafc;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 8px;
+}
+.actions,
+.stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+button {
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.curve {
+  width: 100%;
+  background: #020617;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.error {
+  color: #fca5a5;
+}
+.report {
+  border-top: 1px solid #334155;
+  padding-top: 8px;
+}
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
