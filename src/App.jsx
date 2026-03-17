@@ -154,11 +154,6 @@ function App() {
     [simState.stars, missionStarIds],
   );
 
-  const missionStars = useMemo(
-    () => simState.stars.filter((star) => missionStarIds.includes(star.id)),
-    [simState.stars, missionStarIds],
-  );
-
   const stage = STAGES[stageIndex];
 
   const missionRemaining = useMemo(() => {
