@@ -1,83 +1,187 @@
+:root {
+  font-family: Inter, system-ui, sans-serif;
+  color: #e2e8f0;
+  background: #020617;
+}
+
 body {
   margin: 0;
-  font-family: Inter, system-ui, sans-serif;
-  background: #020617;
-  color: #f8fafc;
+  background: radial-gradient(circle at top, #0f172a, #020617 55%);
+  min-height: 100vh;
 }
-.page {
-  max-width: 1200px;
+
+* {
+  box-sizing: border-box;
+}
+
+.app-shell {
+  max-width: 1240px;
   margin: 0 auto;
   padding: 20px;
 }
+
 .card {
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 12px;
-  padding: 16px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 16px;
+  padding: 18px;
   margin-bottom: 16px;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.45);
+  backdrop-filter: blur(4px);
 }
-.layout {
+
+.hero h1 {
+  margin-bottom: 8px;
+}
+
+.main-grid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1.7fr 1fr;
   gap: 16px;
 }
-.map {
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.stats-row div {
+  background: #0b1220;
+  border: 1px solid #223047;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.stats-row strong {
+  display: block;
+  font-size: 1.5rem;
+}
+
+.stats-row span {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.progress-track {
+  margin: 12px 0;
+  background: #0b1220;
+  border-radius: 999px;
+  overflow: hidden;
+  height: 12px;
+}
+
+.progress-track div {
+  height: 100%;
+  background: linear-gradient(90deg, #22d3ee, #6366f1);
+}
+
+.star-map .map-canvas {
   min-height: 520px;
   position: relative;
-  background: radial-gradient(circle, #1e293b, #020617);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(56, 189, 248, 0.25), transparent 25%),
+    radial-gradient(circle at 75% 70%, rgba(251, 191, 36, 0.15), transparent 30%),
+    #040b1d;
 }
-.star {
+
+.star-dot {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   border: none;
-  background: #93c5fd;
+  background: #60a5fa;
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.8);
   cursor: pointer;
 }
-.star.discovery {
+
+.star-dot.confirmed {
   background: #facc15;
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.8);
 }
-.panel textarea,
-input {
+
+.star-dot.selected {
+  transform: scale(1.4);
+}
+
+.observe-panel .curve-chart {
   width: 100%;
-  margin-bottom: 8px;
-  background: #0b1220;
-  color: #f8fafc;
-  border: 1px solid #334155;
-  border-radius: 8px;
-  padding: 8px;
+  border-radius: 10px;
+  background: #030712;
+  border: 1px solid #1e293b;
 }
-.actions,
-.stats {
+
+.metrics {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  align-items: center;
+  margin: 8px 0;
 }
+
+.metrics span {
+  background: #0b1220;
+  border: 1px solid #223047;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+}
+
+.ai-hint {
+  color: #67e8f9;
+  font-size: 0.95rem;
+}
+
+textarea {
+  width: 100%;
+  min-height: 76px;
+  background: #0b1220;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 10px;
+  margin-top: 6px;
+}
+
 button {
-  background: #2563eb;
-  color: white;
+  background: linear-gradient(90deg, #2563eb, #6366f1);
+  color: #fff;
   border: none;
-  border-radius: 8px;
-  padding: 8px 12px;
+  border-radius: 10px;
+  padding: 8px 14px;
   cursor: pointer;
 }
-.curve {
-  width: 100%;
-  background: #020617;
-  border-radius: 8px;
-  margin-bottom: 8px;
+
+button.ghost {
+  background: transparent;
+  border: 1px solid #475569;
 }
-.error {
-  color: #fca5a5;
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
 }
-.report {
+
+.report-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.report-card {
   border-top: 1px solid #334155;
-  padding-top: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
 }
-@media (max-width: 900px) {
-  .layout {
+
+@media (max-width: 940px) {
+  .main-grid {
     grid-template-columns: 1fr;
+  }
+
+  .stats-row {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
