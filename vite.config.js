@@ -2,6 +2,6 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   esbuild: {
-    jsx: 'automatic',
+    jsxInject: "import React from 'react'",
   },
 });
