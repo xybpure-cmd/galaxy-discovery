@@ -97,10 +97,7 @@ function App() {
   const [taskMode, setTaskMode] = useState(false);
   const [missionStart, setMissionStart] = useState(null);
   const [missionStarIds, setMissionStarIds] = useState([]);
-  const [missionPoolIds, setMissionPoolIds] = useState([]);
-  const [missionTargetCount, setMissionTargetCount] = useState(0);
   const [stageIndex, setStageIndex] = useState(0);
-  const [nowTs, setNowTs] = useState(Date.now());
 
   useEffect(() => {
     const savedUser = localStorage.getItem(LOCAL_USER_KEY);
@@ -157,32 +154,35 @@ function App() {
     [simState.stars, missionStarIds],
   );
 
+  const missionStars = useMemo(
+    () => simState.stars.filter((star) => missionStarIds.includes(star.id)),
+    [simState.stars, missionStarIds],
+  );
+
   const stage = STAGES[stageIndex];
 
   const missionRemaining = useMemo(() => {
     if (!missionStart) return 15 * 60;
-    const elapsed = Math.floor((nowTs - missionStart) / 1000);
+    const elapsed = Math.floor((Date.now() - missionStart) / 1000);
     return Math.max(0, 15 * 60 - elapsed);
-  }, [missionStart, nowTs]);
+  }, [missionStart, stageIndex, missionStarIds.length, selectedStarId]);
 
-  const allJudged = missionStars.length === missionTargetCount
-    && missionStars.length > 0
-    && missionStars.every((star) => star.userClassification);
+  const allJudged = missionStars.length > 0 && missionStars.every((star) => star.userClassification);
 
   const aiHint = useMemo(() => {
-    if (!selectedStar) return 'AI 助手：请先从任务池中选择一颗恒星，并说明你优先观察它的理由。';
+    if (!selectedStar) return 'AI 助手：你想先观察哪颗星？请说明你选择它的理由。';
 
     const { periodicity, dipDepth, noiseLevel } = selectedStar.metrics;
     if (stage === 'observe') {
-      return `AI 助手：这条曲线在哪些时刻出现了可重复下降？你会如何记录证据（周期 ${periodicity}、深度 ${dipDepth}%、噪声 ${noiseLevel}%）？`;
+      return `AI 助手：这条曲线在哪些时间段出现明显下降？你会如何记录（周期 ${periodicity}、深度 ${dipDepth}%、噪声 ${noiseLevel}%）？`;
     }
     if (stage === 'judge') {
-      return 'AI 助手：你如何基于证据做出判断？哪些数据支持“有行星”，哪些数据支持“无信号”？';
+      return 'AI 助手：你的判断依据是什么？哪些证据支持“可能有行星”，哪些证据支持“只是噪声”？';
     }
     if (stage === 'verify') {
-      return 'AI 助手：你的判断和他人一致吗？如果不一致，你准备优先复核哪一段观测数据？';
+      return 'AI 助手：如果你的判断和他人不一致，最可能是哪一步观察或解释不同？你会如何复核？';
     }
-    return 'AI 助手：请按“观察→判断→验证→结论”写成报告，你的核心证据链是什么？';
+    return 'AI 助手：请把证据链写进报告：你观察到什么、如何判断、如何验证、最后结论是什么？';
   }, [selectedStar, stage]);
 
   const curvePoints = useMemo(() => {
@@ -210,33 +210,11 @@ function App() {
   }
 
   function startTaskMode() {
-    const targetCount = 1 + Math.floor(Math.random() * 3);
-    const poolIds = pickMissionPool(simState.stars);
-
     setTaskMode(true);
     setMissionStart(Date.now());
-    setNowTs(Date.now());
     setMissionStarIds([]);
-    setMissionPoolIds(poolIds);
-    setMissionTargetCount(targetCount);
     setSelectedStarId(null);
     setStageIndex(0);
-    setNote('');
-
-    setSimState((prev) => ({
-      ...prev,
-      reports: [],
-      stars: prev.stars.map((star) => ({
-        ...star,
-        observed: false,
-        userClassification: null,
-        candidateUsers: 0,
-        discoveryConfirmed: false,
-        userNote: '',
-        consistency: null,
-        consistencySample: 0,
-      })),
-    }));
   }
 
   function nextStage() {
@@ -244,12 +222,15 @@ function App() {
   }
 
   function openStar(starId) {
-    if (!taskMode || !missionPoolIds.includes(starId)) return;
-    if (stage !== 'observe' && !missionStarIds.includes(starId)) return;
-    if (stage === 'observe' && !missionStarIds.includes(starId) && missionStarIds.length >= missionTargetCount) return;
+    if (taskMode && stage === 'observe' && !missionStarIds.includes(starId) && missionStarIds.length >= 3) {
+      return;
+    }
+    if (taskMode && stage !== 'observe' && !missionStarIds.includes(starId)) {
+      return;
+    }
 
     setSelectedStarId(starId);
-    if (stage === 'observe' && !missionStarIds.includes(starId)) {
+    if (taskMode && stage === 'observe' && !missionStarIds.includes(starId)) {
       setMissionStarIds((prev) => [...prev, starId]);
     }
 
@@ -312,7 +293,7 @@ function App() {
     if (taskMode && stage === 'report' && missionStars.length >= 1 && !latestReport?.title.includes('15分钟科研探索报告')) {
       generateReport();
     }
-  }, [taskMode, stage, missionStars.length, latestReport?.title]);
+  }, [taskMode, stage]);
 
   return (
     <div className="app-shell">
@@ -341,13 +322,12 @@ function App() {
             <div className="progress-track"><div style={{ width: `${progress.percent}%` }} /></div>
             {taskMode ? (
               <div className="mission-flow">
-                <p>任务倒计时：{Math.floor(missionRemaining / 60)}:{String(missionRemaining % 60).padStart(2, '0')} · 任务池 {missionPoolIds.length} 颗 · 目标数量 {missionTargetCount} 颗（已选 {missionStarIds.length}/{missionTargetCount}）</p>
+                <p>任务倒计时：{Math.floor(missionRemaining / 60)}:{String(missionRemaining % 60).padStart(2, '0')} · 本轮限选 1-3 颗恒星（已选 {missionStarIds.length}/3）</p>
                 <ol>
                   {STAGES.map((stageName, idx) => (
                     <li key={stageName} className={idx === stageIndex ? 'active' : idx < stageIndex ? 'done' : ''}>{STAGE_LABELS[stageName]}</li>
                   ))}
                 </ol>
-                <p className="task-tip">任务提示：请先在观察阶段完成目标恒星选择，再进入后续阶段。</p>
               </div>
             ) : (
               <p>请先进入任务模式，系统将按流程推进，不再是随意浏览。</p>
@@ -357,14 +337,13 @@ function App() {
           <section className="main-grid">
             <div className="card star-map">
               <h2>任务星图（流程驱动）</h2>
-              <p>仅任务池恒星可点击；观察阶段限选目标数量，后续阶段仅允许查看已选目标。</p>
+              <p>观察阶段可选择最多 3 颗恒星；后续阶段仅允许查看已选目标。</p>
               <div className="map-canvas">
                 {simState.stars.map((star) => {
-                  const outsidePool = !missionPoolIds.includes(star.id);
-                  const disabled = !taskMode
-                    || outsidePool
-                    || (stage !== 'observe' && !missionStarIds.includes(star.id))
-                    || (stage === 'observe' && missionStarIds.length >= missionTargetCount && !missionStarIds.includes(star.id));
+                  const disabled = taskMode
+                    ? (stage !== 'observe' && !missionStarIds.includes(star.id))
+                    || (stage === 'observe' && missionStarIds.length >= 3 && !missionStarIds.includes(star.id))
+                    : false;
 
                   return (
                     <button
@@ -382,7 +361,7 @@ function App() {
 
             <div className="card observe-panel">
               {!selectedStar ? (
-                <p>{taskMode ? '请从任务池点击恒星，开始观察。' : '请先点击“进入任务模式（15分钟探索）”。'}</p>
+                <p>请从左侧星图选择任务目标，进入当前阶段。</p>
               ) : (
                 <>
                   <h3>{selectedStar.id} 观测界面</h3>
