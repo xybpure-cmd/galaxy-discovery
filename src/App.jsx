@@ -4,6 +4,14 @@ import { buildFallbackStars } from './fallbackData';
 const LOCAL_USER_KEY = 'galaxy-local-user-v2';
 const LOCAL_STATE_KEY = 'galaxy-local-progress-v2';
 
+const STAGES = ['observe', 'judge', 'verify', 'report'];
+const STAGE_LABELS = {
+  observe: '观察',
+  judge: '判断',
+  verify: '验证',
+  report: '报告',
+};
+
 function createLightCurve(seed, hasSignal) {
   const points = [];
   const transitPeriod = 18 + (seed % 9);
@@ -65,14 +73,20 @@ function buildSimulationState() {
       candidateUsers: 0,
       discoveryConfirmed: false,
       userNote: '',
+      consistency: null,
+      consistencySample: 0,
     };
   });
 
   return {
     stars,
     reports: [],
-    achievements: [],
   };
+}
+
+function pickMissionPool(stars, poolSize = 12) {
+  const shuffled = [...stars].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, poolSize).map((star) => star.id);
 }
 
 function App() {
@@ -80,6 +94,13 @@ function App() {
   const [simState, setSimState] = useState(buildSimulationState);
   const [selectedStarId, setSelectedStarId] = useState(null);
   const [note, setNote] = useState('');
+  const [taskMode, setTaskMode] = useState(false);
+  const [missionStart, setMissionStart] = useState(null);
+  const [missionStarIds, setMissionStarIds] = useState([]);
+  const [missionPoolIds, setMissionPoolIds] = useState([]);
+  const [missionTargetCount, setMissionTargetCount] = useState(0);
+  const [stageIndex, setStageIndex] = useState(0);
+  const [nowTs, setNowTs] = useState(Date.now());
 
   useEffect(() => {
     const savedUser = localStorage.getItem(LOCAL_USER_KEY);
@@ -95,6 +116,16 @@ function App() {
     localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(simState));
   }, [simState]);
 
+  useEffect(() => {
+    if (!taskMode || !missionStart) return undefined;
+
+    const timer = setInterval(() => {
+      setNowTs(Date.now());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [taskMode, missionStart]);
+
   const selectedStar = useMemo(
     () => simState.stars.find((star) => star.id === selectedStarId) || null,
     [selectedStarId, simState.stars],
@@ -104,37 +135,55 @@ function App() {
     setNote(selectedStar?.userNote || '');
   }, [selectedStar?.id]);
 
+  const scopedStars = taskMode
+    ? simState.stars.filter((star) => missionPoolIds.includes(star.id))
+    : simState.stars;
+
   const progress = useMemo(() => {
-    const observed = simState.stars.filter((star) => star.observed).length;
-    const candidates = simState.stars.filter((star) => star.userClassification === 'candidate').length;
-    const confirmed = simState.stars.filter((star) => star.discoveryConfirmed).length;
+    const observed = scopedStars.filter((star) => star.observed).length;
+    const candidates = scopedStars.filter((star) => star.userClassification === 'candidate').length;
+    const confirmed = scopedStars.filter((star) => star.discoveryConfirmed).length;
 
     return {
       observed,
       candidates,
       confirmed,
-      percent: Math.round((observed / simState.stars.length) * 100),
+      percent: scopedStars.length ? Math.round((observed / scopedStars.length) * 100) : 0,
     };
-  }, [simState.stars]);
+  }, [scopedStars]);
 
-  const badges = useMemo(() => {
-    const dynamic = [];
-    if (progress.observed >= 5) dynamic.push('初级观测员');
-    if (progress.observed >= 20) dynamic.push('深空巡天者');
-    if (progress.candidates >= 3) dynamic.push('行星猎手');
-    if (progress.confirmed >= 1) dynamic.push('协作发现者');
-    return dynamic;
-  }, [progress]);
+  const missionStars = useMemo(
+    () => simState.stars.filter((star) => missionStarIds.includes(star.id)),
+    [simState.stars, missionStarIds],
+  );
+
+  const stage = STAGES[stageIndex];
+
+  const missionRemaining = useMemo(() => {
+    if (!missionStart) return 15 * 60;
+    const elapsed = Math.floor((nowTs - missionStart) / 1000);
+    return Math.max(0, 15 * 60 - elapsed);
+  }, [missionStart, nowTs]);
+
+  const allJudged = missionStars.length === missionTargetCount
+    && missionStars.length > 0
+    && missionStars.every((star) => star.userClassification);
 
   const aiHint = useMemo(() => {
-    if (!selectedStar) return '请选择一颗恒星，AI 将提示你如何判断。';
+    if (!selectedStar) return 'AI 助手：请先从任务池中选择一颗恒星，并说明你优先观察它的理由。';
 
     const { periodicity, dipDepth, noiseLevel } = selectedStar.metrics;
-    const periodicHint = periodicity > 6 && periodicity < 28 ? '出现疑似周期性下降。' : '周期性不明显。';
-    const depthHint = dipDepth > 2.4 ? '下降深度较清晰，值得关注。' : '下降深度偏浅，可能是噪声。';
-    const noiseHint = noiseLevel < 6.5 ? '噪声较低，数据可信度更高。' : '噪声较高，请谨慎判断。';
-    return `AI提示：${periodicHint}${depthHint}${noiseHint}`;
-  }, [selectedStar]);
+    if (stage === 'observe') {
+      return `AI 助手：这条曲线在哪些时刻出现了可重复下降？你会如何记录证据（周期 ${periodicity}、深度 ${dipDepth}%、噪声 ${noiseLevel}%）？`;
+    }
+    if (stage === 'judge') {
+      return 'AI 助手：你如何基于证据做出判断？哪些数据支持“有行星”，哪些数据支持“无信号”？';
+    }
+    if (stage === 'verify') {
+      return 'AI 助手：你的判断和他人一致吗？如果不一致，你准备优先复核哪一段观测数据？';
+    }
+    return 'AI 助手：请按“观察→判断→验证→结论”写成报告，你的核心证据链是什么？';
+  }, [selectedStar, stage]);
 
   const curvePoints = useMemo(() => {
     if (!selectedStar) return '';
@@ -160,8 +209,50 @@ function App() {
     localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(anonymous));
   }
 
+  function startTaskMode() {
+    const targetCount = 1 + Math.floor(Math.random() * 3);
+    const poolIds = pickMissionPool(simState.stars);
+
+    setTaskMode(true);
+    setMissionStart(Date.now());
+    setNowTs(Date.now());
+    setMissionStarIds([]);
+    setMissionPoolIds(poolIds);
+    setMissionTargetCount(targetCount);
+    setSelectedStarId(null);
+    setStageIndex(0);
+    setNote('');
+
+    setSimState((prev) => ({
+      ...prev,
+      reports: [],
+      stars: prev.stars.map((star) => ({
+        ...star,
+        observed: false,
+        userClassification: null,
+        candidateUsers: 0,
+        discoveryConfirmed: false,
+        userNote: '',
+        consistency: null,
+        consistencySample: 0,
+      })),
+    }));
+  }
+
+  function nextStage() {
+    setStageIndex((prev) => Math.min(prev + 1, STAGES.length - 1));
+  }
+
   function openStar(starId) {
+    if (!taskMode || !missionPoolIds.includes(starId)) return;
+    if (stage !== 'observe' && !missionStarIds.includes(starId)) return;
+    if (stage === 'observe' && !missionStarIds.includes(starId) && missionStarIds.length >= missionTargetCount) return;
+
     setSelectedStarId(starId);
+    if (stage === 'observe' && !missionStarIds.includes(starId)) {
+      setMissionStarIds((prev) => [...prev, starId]);
+    }
+
     setSimState((prev) => ({
       ...prev,
       stars: prev.stars.map((star) => (star.id === starId ? { ...star, observed: true } : star)),
@@ -169,7 +260,12 @@ function App() {
   }
 
   function classifyStar(verdict) {
-    if (!selectedStar) return;
+    if (!selectedStar || stage !== 'judge') return;
+
+    const seed = Number(selectedStar.id.split('-')[1]);
+    const baseline = selectedStar.hasSignal ? 70 : 35;
+    const confidenceBump = verdict === 'candidate' ? 12 : -8;
+    const consistency = Math.max(8, Math.min(96, baseline + confidenceBump + (seed % 11) - 5));
 
     setSimState((prev) => ({
       ...prev,
@@ -185,40 +281,51 @@ function App() {
           userNote: note,
           candidateUsers,
           discoveryConfirmed,
+          consistency,
+          consistencySample: 60 + (seed % 70),
         };
       }),
     }));
   }
 
   function generateReport() {
-    const candidateStars = simState.stars.filter((star) => star.userClassification === 'candidate');
+    const targets = missionStars.length ? missionStars : simState.stars.filter((star) => star.observed).slice(0, 3);
+    const candidateStars = targets.filter((star) => star.userClassification === 'candidate');
     const report = {
       id: `R-${Date.now()}`,
-      title: `银河探索研究报告 #${simState.reports.length + 1}`,
+      title: `15分钟科研探索报告 #${simState.reports.length + 1}`,
       createdAt: new Date().toLocaleString(),
-      content: `本轮完成 ${progress.observed}/${simState.stars.length} 颗目标观测，标注候选 ${candidateStars.length} 颗，协作确认 ${progress.confirmed} 颗。重点候选：${candidateStars
-        .slice(0, 5)
-        .map((star) => `${star.id}(深度${star.metrics.dipDepth}%)`)
-        .join('、') || '暂无'}。`,
+      content: `本轮任务在 15 分钟内完成 ${targets.length} 颗恒星探索。观察对象：${targets.map((s) => s.id).join('、') || '暂无'}。判断结果：候选 ${candidateStars.length} 颗。验证阶段中，平均与其他用户一致性为 ${targets.length ? Math.round(targets.reduce((sum, star) => sum + (star.consistency || 0), 0) / targets.length) : 0}% 。`,
       insights: [
-        '优先关注周期性下降且噪声较低的目标。',
-        '对于深度不足 2% 的曲线，需要更多轮次复核。',
-        '建议下一阶段对已确认候选进行连续观测。',
+        '观察：优先标记重复出现下降段的光变曲线。',
+        '判断：结合周期、深度、噪声三项指标给出证据链。',
+        '验证：使用其他用户一致性检查主观偏差，再给出最终结论。',
       ],
     };
 
     setSimState((prev) => ({ ...prev, reports: [report, ...prev.reports] }));
   }
 
+  const latestReport = simState.reports[0];
+
+  useEffect(() => {
+    if (taskMode && stage === 'report' && missionStars.length >= 1 && !latestReport?.title.includes('15分钟科研探索报告')) {
+      generateReport();
+    }
+  }, [taskMode, stage, missionStars.length, latestReport?.title]);
+
   return (
     <div className="app-shell">
       <header className="hero card">
-        <h1>Galaxy Discovery · 科研探索舰桥</h1>
-        <p>通过星图巡天、光变判读、AI 引导与报告生成，完成你的小型系外行星发现任务。</p>
+        <h1>Galaxy Discovery · 15分钟科研探索任务</h1>
+        <p>面向高中生：在 15 分钟内按“观察→判断→验证→报告”完成一次完整科研体验。</p>
         {!user ? (
           <button onClick={startAnonymous}>进入离线演示舱</button>
         ) : (
-          <p>欢迎回来，{user.nickname}。当前模式：本地模拟科研训练（无需后端）。</p>
+          <div className="task-entry">
+            <p>欢迎回来，{user.nickname}。当前可切换为“任务模式”。</p>
+            <button onClick={startTaskMode}>进入任务模式（15分钟探索）</button>
+          </div>
         )}
       </header>
 
@@ -226,39 +333,60 @@ function App() {
         <>
           <section className="card progress-panel">
             <div className="stats-row">
-              <div><strong>{simState.stars.length}</strong><span>可探索目标</span></div>
+              <div><strong>{taskMode ? missionPoolIds.length : simState.stars.length}</strong><span>可探索目标</span></div>
               <div><strong>{progress.observed}</strong><span>已观测</span></div>
               <div><strong>{progress.candidates}</strong><span>候选目标</span></div>
               <div><strong>{progress.confirmed}</strong><span>协作确认</span></div>
             </div>
             <div className="progress-track"><div style={{ width: `${progress.percent}%` }} /></div>
-            <p>探索进度 {progress.percent}% · 成就徽章：{badges.length ? badges.join(' / ') : '继续探索解锁'}</p>
+            {taskMode ? (
+              <div className="mission-flow">
+                <p>任务倒计时：{Math.floor(missionRemaining / 60)}:{String(missionRemaining % 60).padStart(2, '0')} · 任务池 {missionPoolIds.length} 颗 · 目标数量 {missionTargetCount} 颗（已选 {missionStarIds.length}/{missionTargetCount}）</p>
+                <ol>
+                  {STAGES.map((stageName, idx) => (
+                    <li key={stageName} className={idx === stageIndex ? 'active' : idx < stageIndex ? 'done' : ''}>{STAGE_LABELS[stageName]}</li>
+                  ))}
+                </ol>
+                <p className="task-tip">任务提示：请先在观察阶段完成目标恒星选择，再进入后续阶段。</p>
+              </div>
+            ) : (
+              <p>请先进入任务模式，系统将按流程推进，不再是随意浏览。</p>
+            )}
           </section>
 
           <section className="main-grid">
             <div className="card star-map">
-              <h2>银河探索主界面</h2>
-              <p>点击任意恒星进入观测界面。金色代表协作确认候选，蓝色代表普通目标。</p>
+              <h2>任务星图（流程驱动）</h2>
+              <p>仅任务池恒星可点击；观察阶段限选目标数量，后续阶段仅允许查看已选目标。</p>
               <div className="map-canvas">
-                {simState.stars.map((star) => (
-                  <button
-                    key={star.id}
-                    className={`star-dot ${star.discoveryConfirmed ? 'confirmed' : ''} ${selectedStarId === star.id ? 'selected' : ''}`}
-                    style={{ left: `${star.x}%`, top: `${star.y}%` }}
-                    onClick={() => openStar(star.id)}
-                    title={`${star.id} · ${star.spectralType} 型星`}
-                  />
-                ))}
+                {simState.stars.map((star) => {
+                  const outsidePool = !missionPoolIds.includes(star.id);
+                  const disabled = !taskMode
+                    || outsidePool
+                    || (stage !== 'observe' && !missionStarIds.includes(star.id))
+                    || (stage === 'observe' && missionStarIds.length >= missionTargetCount && !missionStarIds.includes(star.id));
+
+                  return (
+                    <button
+                      key={star.id}
+                      className={`star-dot ${star.discoveryConfirmed ? 'confirmed' : ''} ${selectedStarId === star.id ? 'selected' : ''} ${disabled ? 'disabled' : ''}`}
+                      style={{ left: `${star.x}%`, top: `${star.y}%` }}
+                      onClick={() => openStar(star.id)}
+                      title={`${star.id} · ${star.spectralType} 型星`}
+                      disabled={disabled}
+                    />
+                  );
+                })}
               </div>
             </div>
 
             <div className="card observe-panel">
               {!selectedStar ? (
-                <p>请从左侧星图选择目标，进入观测模式。</p>
+                <p>{taskMode ? '请从任务池点击恒星，开始观察。' : '请先点击“进入任务模式（15分钟探索）”。'}</p>
               ) : (
                 <>
                   <h3>{selectedStar.id} 观测界面</h3>
-                  <p>{selectedStar.spectralType} 型 · 距离 {selectedStar.distanceLy} 光年 · 候选计数 {selectedStar.candidateUsers}</p>
+                  <p>{selectedStar.spectralType} 型 · 距离 {selectedStar.distanceLy} 光年</p>
                   <svg viewBox="0 0 540 230" className="curve-chart">
                     <polyline points={curvePoints} fill="none" stroke="#38bdf8" strokeWidth="2.2" />
                   </svg>
@@ -268,23 +396,42 @@ function App() {
                     <span>噪声范围：{selectedStar.metrics.noiseLevel}%</span>
                   </div>
                   <p className="ai-hint">{aiHint}</p>
-                  <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="记录你的科研判断依据..." />
-                  <div className="actions">
-                    <button onClick={() => classifyStar('candidate')}>可能存在行星</button>
-                    <button className="ghost" onClick={() => classifyStar('none')}>未发现信号</button>
-                  </div>
+
+                  {stage === 'judge' && (
+                    <>
+                      <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="写下你的判断依据与证据链..." />
+                      <div className="actions">
+                        <button onClick={() => classifyStar('candidate')}>我判断：可能存在行星</button>
+                        <button className="ghost" onClick={() => classifyStar('none')}>我判断：未发现信号</button>
+                      </div>
+                    </>
+                  )}
+
+                  {stage === 'verify' && selectedStar.consistency !== null && (
+                    <div className="consistency-box">
+                      其他用户一致性：{selectedStar.consistency}%（样本 {selectedStar.consistencySample} 人）
+                    </div>
+                  )}
                 </>
+              )}
+
+              {taskMode && (
+                <div className="stage-actions">
+                  {stage === 'observe' && <button disabled={missionStarIds.length !== missionTargetCount} onClick={nextStage}>进入判断阶段</button>}
+                  {stage === 'judge' && <button disabled={!allJudged} onClick={nextStage}>进入验证阶段</button>}
+                  {stage === 'verify' && <button onClick={nextStage}>进入报告阶段</button>}
+                </div>
               )}
             </div>
           </section>
 
           <section className="card report-page">
             <div className="report-head">
-              <h2>研究报告</h2>
-              <button onClick={generateReport}>生成一页研究报告</button>
+              <h2>一页研究报告</h2>
+              <button onClick={generateReport}>重新生成报告</button>
             </div>
             {simState.reports.length === 0 ? (
-              <p>还没有报告，完成几次观测并点击生成按钮。</p>
+              <p>进入任务模式并完成流程后，系统会自动生成报告。</p>
             ) : (
               simState.reports.map((report) => (
                 <article key={report.id} className="report-card">
