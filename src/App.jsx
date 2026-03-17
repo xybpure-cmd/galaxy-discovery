@@ -84,6 +84,11 @@ function buildSimulationState() {
   };
 }
 
+function pickMissionPool(stars, poolSize = 12) {
+  const shuffled = [...stars].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, poolSize).map((star) => star.id);
+}
+
 function App() {
   const [user, setUser] = useState(null);
   const [simState, setSimState] = useState(buildSimulationState);
@@ -108,6 +113,16 @@ function App() {
     localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(simState));
   }, [simState]);
 
+  useEffect(() => {
+    if (!taskMode || !missionStart) return undefined;
+
+    const timer = setInterval(() => {
+      setNowTs(Date.now());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [taskMode, missionStart]);
+
   const selectedStar = useMemo(
     () => simState.stars.find((star) => star.id === selectedStarId) || null,
     [selectedStarId, simState.stars],
@@ -117,18 +132,27 @@ function App() {
     setNote(selectedStar?.userNote || '');
   }, [selectedStar?.id]);
 
+  const scopedStars = taskMode
+    ? simState.stars.filter((star) => missionPoolIds.includes(star.id))
+    : simState.stars;
+
   const progress = useMemo(() => {
-    const observed = simState.stars.filter((star) => star.observed).length;
-    const candidates = simState.stars.filter((star) => star.userClassification === 'candidate').length;
-    const confirmed = simState.stars.filter((star) => star.discoveryConfirmed).length;
+    const observed = scopedStars.filter((star) => star.observed).length;
+    const candidates = scopedStars.filter((star) => star.userClassification === 'candidate').length;
+    const confirmed = scopedStars.filter((star) => star.discoveryConfirmed).length;
 
     return {
       observed,
       candidates,
       confirmed,
-      percent: Math.round((observed / simState.stars.length) * 100),
+      percent: scopedStars.length ? Math.round((observed / scopedStars.length) * 100) : 0,
     };
-  }, [simState.stars]);
+  }, [scopedStars]);
+
+  const missionStars = useMemo(
+    () => simState.stars.filter((star) => missionStarIds.includes(star.id)),
+    [simState.stars, missionStarIds],
+  );
 
   const missionStars = useMemo(
     () => simState.stars.filter((star) => missionStarIds.includes(star.id)),
@@ -290,7 +314,7 @@ function App() {
         <>
           <section className="card progress-panel">
             <div className="stats-row">
-              <div><strong>{simState.stars.length}</strong><span>可探索目标</span></div>
+              <div><strong>{taskMode ? missionPoolIds.length : simState.stars.length}</strong><span>可探索目标</span></div>
               <div><strong>{progress.observed}</strong><span>已观测</span></div>
               <div><strong>{progress.candidates}</strong><span>候选目标</span></div>
               <div><strong>{progress.confirmed}</strong><span>协作确认</span></div>
