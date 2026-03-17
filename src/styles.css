@@ -34,6 +34,14 @@ body {
   margin-bottom: 8px;
 }
 
+.task-entry {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
 .main-grid {
   display: grid;
   grid-template-columns: 1.7fr 1fr;
@@ -76,6 +84,40 @@ body {
   background: linear-gradient(90deg, #22d3ee, #6366f1);
 }
 
+.mission-flow {
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 10px;
+  background: #050b18;
+}
+
+.mission-flow ol {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  list-style: none;
+  padding: 0;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.mission-flow li {
+  border: 1px solid #334155;
+  border-radius: 999px;
+  text-align: center;
+  padding: 6px;
+  color: #94a3b8;
+}
+
+.mission-flow li.active {
+  border-color: #22d3ee;
+  color: #67e8f9;
+}
+
+.mission-flow li.done {
+  border-color: #4ade80;
+  color: #bbf7d0;
+}
+
 .star-map .map-canvas {
   min-height: 520px;
   position: relative;
@@ -104,6 +146,11 @@ body {
 
 .star-dot.selected {
   transform: scale(1.4);
+}
+
+.star-dot.disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
 }
 
 .observe-panel .curve-chart {
@@ -153,15 +200,29 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 button.ghost {
   background: transparent;
   border: 1px solid #475569;
 }
 
-.actions {
+.actions,
+.stage-actions {
   display: flex;
   gap: 8px;
   margin-top: 8px;
+}
+
+.consistency-box {
+  margin-top: 8px;
+  border: 1px dashed #67e8f9;
+  border-radius: 8px;
+  padding: 8px;
+  color: #a5f3fc;
 }
 
 .report-head {
@@ -182,6 +243,10 @@ button.ghost {
   }
 
   .stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .mission-flow ol {
     grid-template-columns: repeat(2, 1fr);
   }
 }
