@@ -118,11 +118,6 @@ body {
   color: #bbf7d0;
 }
 
-.task-tip {
-  margin: 10px 0 0;
-  color: #c7d2fe;
-}
-
 .star-map .map-canvas {
   min-height: 520px;
   position: relative;
