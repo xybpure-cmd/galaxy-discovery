@@ -396,7 +396,7 @@ function App() {
 
               {taskMode && (
                 <div className="stage-actions">
-                  {stage === 'observe' && <button disabled={missionStarIds.length < 1} onClick={nextStage}>进入判断阶段</button>}
+                  {stage === 'observe' && <button disabled={missionStarIds.length !== missionTargetCount} onClick={nextStage}>进入判断阶段</button>}
                   {stage === 'judge' && <button disabled={!allJudged} onClick={nextStage}>进入验证阶段</button>}
                   {stage === 'verify' && <button onClick={nextStage}>进入报告阶段</button>}
                 </div>
